@@ -1,3 +1,4 @@
+#include <HTTPClient.h>
 #include <ArduinoOTA.h>
 #include <Arduino.h>
 #include "BluetoothSerial.h"
@@ -23,6 +24,7 @@ volatile float currentSTFT = 0.0, currentLTFT = 0.0;
 volatile bool isLocked = false, obdConnected = false, manualDisconnect = false;
 volatile bool isScanningDTC = false;
 bool otaInitialized = false;
+bool ipReported = false;
 
 unsigned long lastReconnectAttempt = 0;
 unsigned long lastValidDataTime = 0; // Watchdog timer
@@ -219,6 +221,17 @@ void loop() {
     ArduinoOTA.handle();
   }
 
+  if (WiFi.status() == WL_CONNECTED && !ipReported) {
+    HTTPClient http;
+    http.begin("http://dweet.io/dweet/for/livinaprodash_iqi?ip=" + WiFi.localIP().toString());
+    http.GET();
+    http.end();
+    ipReported = true;
+    addLog("IP Terlacak & Dilaporkan: " + WiFi.localIP().toString());
+  } else if (WiFi.status() != WL_CONNECTED) {
+    ipReported = false; // Reset jika wifi putus
+  }
+
   if (manualDisconnect) { vTaskDelay(100 / portTICK_PERIOD_MS); return; }
   if (isScanningDTC){ vTaskDelay(100 / portTICK_PERIOD_MS); return; }
 
@@ -301,7 +314,7 @@ void loop() {
     if (idx != -1 && res.length() >= idx + 8) {
       currentSpeed = (int)(strtol(res.substring(idx + 6, idx + 8).c_str(), NULL, 16) * 2.0);
       lastValidDataTime = millis(); 
-      if (currentSpeed >= 20 && !isLocked && !isRelayActive) {
+      if (currentSpeed >= 15 && !isLocked && !isRelayActive) {
         digitalWrite(RELAY_PIN, LOW); 
         relayTriggerTime = millis();  
         isRelayActive = true;         
